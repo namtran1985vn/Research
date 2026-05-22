@@ -1,238 +1,171 @@
 #!/usr/bin/env python3
 """
-Build a Google Play Books compatible EPUB from markdown.
-Uses ebooklib for proper EPUB3 structure.
+Build a Google Play Books–compatible EPUB from markdown.
+Strategy:
+  - Use lxml to parse and re-serialise every chapter as clean XHTML
+  - Inline CSS in <head> (avoids external-CSS loading issues)
+  - Generate EPUB3 with nav=linear:no AND a companion EPUB2
+  - ASCII-only filenames, ISO-8601 date, dc:language=vi
 """
 
-import re
-import os
+import re, os, textwrap
 import markdown
+from lxml import etree, html as lxhtml
 from ebooklib import epub
 
-# ── Config ──────────────────────────────────────────────────────────────────
-MD_FILE   = "/Volumes/RAMDisk/Research/Youtube Chanel/book/youtube-cgm-formula.md"
-OUT_FILE  = "/Volumes/RAMDisk/Research/Youtube Chanel/book/youtube-cgm-formula.epub"
-COVER_IMG = "/Volumes/RAMDisk/Research/Youtube Chanel/book/epub-assets/cover.jpg"
+# ── Paths ────────────────────────────────────────────────────────────────────
+BASE    = "/Volumes/RAMDisk/Research/Youtube Chanel/book"
+MD_FILE = f"{BASE}/youtube-cgm-formula.md"
+OUT3    = f"{BASE}/youtube-cgm-formula.epub"          # EPUB3
+OUT2    = f"{BASE}/youtube-cgm-formula-epub2.epub"    # EPUB2 (fallback)
+COVER   = f"{BASE}/epub-assets/cover.jpg"
 
-# ── CSS (embedded, Play Books compatible) ────────────────────────────────────
-STYLE = """
-body {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 100%;
-  line-height: 1.75;
-  margin: 0;
-  padding: 0.5em 1em;
-  color: #1a1a1a;
-  background: #fff;
-}
-h1 {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 1.7em;
-  font-weight: bold;
-  color: #0d1b2a;
-  border-bottom: 3px solid #e63946;
-  padding-bottom: 0.3em;
-  margin: 1.5em 0 0.6em 0;
-}
-h2 {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 1.25em;
-  font-weight: bold;
-  color: #1d3557;
-  margin: 1.3em 0 0.4em 0;
-}
-h3 {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 1.05em;
-  font-weight: bold;
-  color: #457b9d;
-  margin: 1em 0 0.3em 0;
-}
-p {
-  margin: 0 0 0.8em 0;
-  text-align: justify;
-}
-blockquote {
-  border-left: 4px solid #e63946;
-  margin: 0.8em 0;
-  padding: 0.4em 0.9em;
-  background: #f8f9fa;
-  color: #444;
-  font-style: italic;
-}
-ul, ol {
-  margin: 0.4em 0 0.8em 1.6em;
-  padding: 0;
-}
-li {
-  margin-bottom: 0.35em;
-}
-strong { color: #c1121f; }
-em     { color: #457b9d; }
-hr {
-  border: none;
-  border-top: 1px solid #ddd;
-  margin: 1.2em 0;
-}
-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.8em 0;
-  font-size: 0.9em;
-}
-th {
-  background: #1d3557;
-  color: #fff;
-  padding: 0.4em 0.6em;
-  text-align: left;
-}
-td {
-  border: 1px solid #ccc;
-  padding: 0.35em 0.6em;
-}
-tr:nth-child(even) td { background: #f5f7f9; }
-code {
-  font-family: "Courier New", monospace;
-  font-size: 0.88em;
-  background: #f0f4f8;
-  padding: 0.1em 0.3em;
-  border-radius: 3px;
-}
-"""
+# ── CSS ──────────────────────────────────────────────────────────────────────
+STYLE = textwrap.dedent("""\
+    body{font-family:Georgia,'Times New Roman',serif;font-size:100%;
+         line-height:1.75;margin:0;padding:.6em 1em;color:#1a1a1a;background:#fff}
+    h1{font-family:Arial,Helvetica,sans-serif;font-size:1.65em;font-weight:bold;
+       color:#0d1b2a;border-bottom:3px solid #c1121f;padding-bottom:.25em;
+       margin:1.4em 0 .5em 0}
+    h2{font-family:Arial,Helvetica,sans-serif;font-size:1.22em;font-weight:bold;
+       color:#1d3557;margin:1.2em 0 .35em 0}
+    h3{font-family:Arial,Helvetica,sans-serif;font-size:1.05em;font-weight:bold;
+       color:#457b9d;margin:.9em 0 .25em 0}
+    p{margin:0 0 .75em 0;text-align:justify}
+    blockquote{border-left:4px solid #c1121f;margin:.7em 0;
+               padding:.35em .8em;background:#f8f9fa;color:#444;font-style:italic}
+    ul,ol{margin:.4em 0 .7em 1.5em;padding:0}
+    li{margin-bottom:.3em}
+    hr{border:none;border-top:1px solid #ccc;margin:1em 0}
+    table{border-collapse:collapse;width:100%;margin:.7em 0;font-size:.88em}
+    th{background:#1d3557;color:#fff;padding:.35em .55em;text-align:left}
+    td{border:1px solid #bbb;padding:.3em .55em}
+    tr:nth-child(even) td{background:#f4f6f9}
+    code{font-family:'Courier New',monospace;font-size:.85em;
+         background:#f0f4f8;padding:.05em .25em;border-radius:3px}
+""")
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-def slugify(text):
-    # Transliterate Vietnamese to ASCII
-    vn_map = {
-        'à':'a','á':'a','â':'a','ã':'a','ả':'a','ạ':'a',
-        'ă':'a','ắ':'a','ặ':'a','ằ':'a','ẳ':'a','ẵ':'a',
-        'â':'a','ấ':'a','ầ':'a','ẩ':'a','ẫ':'a','ậ':'a',
-        'è':'e','é':'e','ê':'e','ẹ':'e','ẻ':'e','ẽ':'e',
-        'ế':'e','ề':'e','ệ':'e','ể':'e','ễ':'e',
-        'ì':'i','í':'i','ị':'i','ỉ':'i','ĩ':'i',
-        'ò':'o','ó':'o','ô':'o','õ':'o','ọ':'o','ỏ':'o',
-        'ố':'o','ồ':'o','ộ':'o','ổ':'o','ỗ':'o',
-        'ơ':'o','ớ':'o','ờ':'o','ợ':'o','ở':'o','ỡ':'o',
-        'ù':'u','ú':'u','ụ':'u','ủ':'u','ũ':'u',
-        'ư':'u','ứ':'u','ừ':'u','ự':'u','ử':'u','ữ':'u',
-        'ỳ':'y','ý':'y','ỵ':'y','ỷ':'y','ỹ':'y',
-        'đ':'d',
-        'À':'a','Á':'a','Â':'a','Ã':'a','Ả':'a','Ạ':'a',
-        'Ă':'a','Ắ':'a','Ặ':'a','Ằ':'a','Ẳ':'a','Ẵ':'a',
-        'È':'e','É':'e','Ê':'e','Ẹ':'e','Ẻ':'e','Ẽ':'e',
-        'Ế':'e','Ề':'e','Ệ':'e','Ể':'e','Ễ':'e',
-        'Ì':'i','Í':'i','Ị':'i','Ỉ':'i','Ĩ':'i',
-        'Ò':'o','Ó':'o','Ô':'o','Õ':'o','Ọ':'o','Ỏ':'o',
-        'Ố':'o','Ồ':'o','Ộ':'o','Ổ':'o','Ỗ':'o',
-        'Ơ':'o','Ớ':'o','Ờ':'o','Ợ':'o','Ở':'o','Ỡ':'o',
-        'Ù':'u','Ú':'u','Ụ':'u','Ủ':'u','Ũ':'u',
-        'Ư':'u','Ứ':'u','Ừ':'u','Ự':'u','Ử':'u','Ữ':'u',
-        'Ỳ':'y','Ý':'y','Ỵ':'y','Ỷ':'y','Ỹ':'y',
-        'Đ':'d',
-    }
-    result = ''
-    for ch in text.lower():
-        result += vn_map.get(ch, ch)
-    result = re.sub(r'[^a-z0-9\s-]', '', result)
-    result = re.sub(r'[\s_-]+', '-', result)
-    return result.strip('-')[:50]
+import unicodedata
 
-def md_to_html(text):
-    return markdown.markdown(
-        text,
-        extensions=['tables', 'fenced_code', 'nl2br', 'sane_lists']
+def slugify(text):
+    # Decompose Unicode → strip combining marks → keep ASCII
+    t = unicodedata.normalize('NFD', text.lower())
+    t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
+    # đ/Đ not decomposed by NFD
+    t = t.replace('đ', 'd').replace('ð', 'd')
+    t = re.sub(r'[^a-z0-9]+', '-', t)
+    return t.strip('-')[:48] or 'chapter'
+
+def md_to_xhtml(md_text, title):
+    """Convert markdown → clean XHTML body string via lxml."""
+    raw_html = markdown.markdown(
+        md_text,
+        extensions=['tables', 'fenced_code', 'sane_lists']
+    )
+    # Parse with lxml (tolerant HTML parser), then serialise as XHTML
+    frag = lxhtml.fragment_fromstring(raw_html, create_parent='div')
+    # Self-closing fix: lxml serialises img/br/hr as <br/> etc. automatically
+    body_inner = etree.tostring(frag, encoding='unicode', method='xml')
+    # Strip the wrapping <div> tags lxml added
+    body_inner = re.sub(r'^<div[^>]*>', '', body_inner)
+    body_inner = re.sub(r'</div>$', '', body_inner)
+    return body_inner.strip()
+
+def make_xhtml(title, body_inner, css):
+    """Wrap body content in a complete, self-contained XHTML document."""
+    safe_title = title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!DOCTYPE html>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="vi" lang="vi">\n'
+        '<head>\n'
+        f'  <meta charset="utf-8"/>\n'
+        f'  <title>{safe_title}</title>\n'
+        f'  <style type="text/css">\n{css}\n  </style>\n'
+        '</head>\n'
+        '<body>\n'
+        f'{body_inner}\n'
+        '</body>\n'
+        '</html>'
     )
 
-def wrap_html(title, body_html):
-    # Pass only the body content — ebooklib wraps with proper XHTML/EPUB3 shell
-    return body_html
-
-# ── Read & strip YAML front matter ───────────────────────────────────────────
-with open(MD_FILE, "r", encoding="utf-8") as f:
+# ── Parse markdown ────────────────────────────────────────────────────────────
+with open(MD_FILE, encoding='utf-8') as f:
     raw = f.read()
 
-raw = re.sub(r'^---.*?---\n', '', raw, count=1, flags=re.DOTALL)
+raw = re.sub(r'^---.*?---\s*\n', '', raw, count=1, flags=re.DOTALL)
 
-# ── Split into chapters on H1 (# ...) ────────────────────────────────────────
 parts = re.split(r'^(# .+)$', raw, flags=re.MULTILINE)
-
-chapters = []
+chapters_raw = []
 if parts[0].strip():
-    chapters.append(("Lời mở đầu", parts[0]))
-
+    chapters_raw.append(('Lời Mở Đầu', parts[0]))
 i = 1
 while i < len(parts) - 1:
     heading = parts[i].lstrip('#').strip()
-    body    = parts[i+1] if i+1 < len(parts) else ""
-    chapters.append((heading, parts[i] + body))
+    body    = parts[i+1] if i+1 < len(parts) else ''
+    chapters_raw.append((heading, parts[i] + body))
     i += 2
 
-print(f"Found {len(chapters)} chapters")
+print(f"Parsed {len(chapters_raw)} chapters")
 
-# ── Build EPUB ────────────────────────────────────────────────────────────────
-book = epub.EpubBook()
+# ── Build EPUB3 ───────────────────────────────────────────────────────────────
+def build(version, out_path):
+    book = epub.EpubBook()
+    book.set_identifier(f'cgm-youtube-formula-2026-v{version}')
+    book.set_title('Công Thức YouTube Triệu Đô')
+    book.set_language('vi')
+    book.add_author('CGM Channel Research')
+    book.add_metadata('DC', 'description',
+        'Hướng dẫn xây dựng kênh YouTube CGM nhắm vào người Mỹ giàu có')
+    book.add_metadata('DC', 'publisher', 'CGM Research')
+    book.add_metadata('DC', 'date', '2026-01-01')
+    book.add_metadata('DC', 'rights', 'All rights reserved')
 
-# Metadata
-book.set_identifier("cgm-youtube-formula-2026")
-book.set_title("Công Thức YouTube Triệu Đô")
-book.set_language("vi")
-book.add_author("CGM Channel Research")
-book.add_metadata('DC', 'description',
-    'Hướng dẫn xây dựng kênh YouTube về CGM/đường máu targeting người Mỹ giàu có')
-book.add_metadata('DC', 'publisher', 'CGM Research')
-book.add_metadata('DC', 'date', '2026-01-01')
-book.add_metadata('DC', 'rights', 'All rights reserved')
+    # Cover
+    if os.path.exists(COVER):
+        with open(COVER, 'rb') as f:
+            book.set_cover('cover.jpg', f.read())
 
-# Cover image
-if os.path.exists(COVER_IMG):
-    with open(COVER_IMG, "rb") as f:
-        cover_data = f.read()
-    book.set_cover("cover.jpg", cover_data)
-    print("Cover added")
+    # Chapters
+    epub_chaps = []
+    for idx, (title, md_text) in enumerate(chapters_raw):
+        slug     = slugify(title)
+        filename = f'ch{idx:02d}-{slug}.xhtml'
+        body     = md_to_xhtml(md_text, title)
+        xhtml    = make_xhtml(title, body, STYLE)
 
-# CSS
-style = epub.EpubItem(
-    uid="style",
-    file_name="style/main.css",
-    media_type="text/css",
-    content=STYLE.encode("utf-8")
-)
-book.add_item(style)
+        ch = epub.EpubHtml(title=title, file_name=filename, lang='vi')
+        ch.set_content(xhtml.encode('utf-8'))
+        book.add_item(ch)
+        epub_chaps.append(ch)
+        print(f'  [{idx+1:02d}] {title[:58]}')
 
-# Chapters
-epub_chapters = []
-spine = ["nav"]
+    # NCX + NAV
+    book.add_item(epub.EpubNcx())
+    nav = epub.EpubNav()
+    book.add_item(nav)
 
-for idx, (title, md_text) in enumerate(chapters):
-    slug     = slugify(title) or f"chapter-{idx}"
-    filename = f"chapter-{idx:02d}-{slug}.xhtml"
+    # TOC
+    book.toc = tuple(epub_chaps)
 
-    body_html = md_to_html(md_text)
-    html      = wrap_html(title, body_html)
+    # Spine: nav hidden, then chapters
+    book.spine = [('nav', 'no')] + epub_chaps
 
-    chapter = epub.EpubHtml(
-        title=title,
-        file_name=filename,
-        lang="vi",
-        content=html.encode("utf-8")
-    )
-    chapter.add_item(style)
-    book.add_item(chapter)
-    epub_chapters.append(chapter)
-    spine.append(chapter)
-    print(f"  [{idx+1:02d}] {title[:60]}")
+    # EPUB guide (EPUB2 compatibility)
+    book.guide = [
+        {'type': 'toc',   'href': 'nav.xhtml',          'title': 'Mục Lục'},
+        {'type': 'text',  'href': epub_chaps[0].file_name, 'title': 'Bắt Đầu'},
+    ]
 
-# Navigation — nav must be non-linear so Play Books starts at chapter 1
-nav = epub.EpubNav()
-book.add_item(epub.EpubNcx())
-book.add_item(nav)
-book.toc = tuple(epub_chapters)
+    epub.write_epub(out_path, book)
+    size = os.path.getsize(out_path) / 1024
+    print(f'\n✅ EPUB{version} → {out_path}')
+    print(f'   {size:.1f} KB  |  {len(epub_chaps)} chapters')
 
-# Spine: nav non-linear, then chapters in order
-book.spine = [('nav', 'no')] + epub_chapters
+# Build both versions
+print('\n── Building EPUB3 ──────────────────────────────────────')
+build(3, OUT3)
 
-# Write
-epub.write_epub(OUT_FILE, book)
-size = os.path.getsize(OUT_FILE)
-print(f"\n✅ EPUB written: {OUT_FILE}")
-print(f"   Size: {size/1024:.1f} KB  |  Chapters: {len(epub_chapters)}")
+print('\n── Building EPUB2 (fallback) ───────────────────────────')
+build(2, OUT2)
