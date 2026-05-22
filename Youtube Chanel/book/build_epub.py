@@ -144,17 +144,8 @@ def md_to_html(text):
     )
 
 def wrap_html(title, body_html):
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="vi" lang="vi">
-<head>
-  <meta charset="UTF-8"/>
-  <title>{title}</title>
-</head>
-<body>
-{body_html}
-</body>
-</html>"""
+    # Pass only the body content — ebooklib wraps with proper XHTML/EPUB3 shell
+    return body_html
 
 # ── Read & strip YAML front matter ───────────────────────────────────────────
 with open(MD_FILE, "r", encoding="utf-8") as f:
@@ -189,7 +180,7 @@ book.add_author("CGM Channel Research")
 book.add_metadata('DC', 'description',
     'Hướng dẫn xây dựng kênh YouTube về CGM/đường máu targeting người Mỹ giàu có')
 book.add_metadata('DC', 'publisher', 'CGM Research')
-book.add_metadata('DC', 'date', '2026')
+book.add_metadata('DC', 'date', '2026-01-01')
 book.add_metadata('DC', 'rights', 'All rights reserved')
 
 # Cover image
@@ -231,11 +222,14 @@ for idx, (title, md_text) in enumerate(chapters):
     spine.append(chapter)
     print(f"  [{idx+1:02d}] {title[:60]}")
 
-# Navigation
-book.toc = tuple(epub_chapters)
+# Navigation — nav must be non-linear so Play Books starts at chapter 1
+nav = epub.EpubNav()
 book.add_item(epub.EpubNcx())
-book.add_item(epub.EpubNav())
-book.spine = spine
+book.add_item(nav)
+book.toc = tuple(epub_chapters)
+
+# Spine: nav non-linear, then chapters in order
+book.spine = [('nav', 'no')] + epub_chapters
 
 # Write
 epub.write_epub(OUT_FILE, book)
