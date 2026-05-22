@@ -22,27 +22,24 @@ COVER   = f"{BASE}/epub-assets/cover.jpg"
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 STYLE = textwrap.dedent("""\
-    body{font-family:Georgia,'Times New Roman',serif;font-size:100%;
-         line-height:1.75;margin:0;padding:.6em 1em;color:#1a1a1a;background:#fff}
-    h1{font-family:Arial,Helvetica,sans-serif;font-size:1.65em;font-weight:bold;
-       color:#0d1b2a;border-bottom:3px solid #c1121f;padding-bottom:.25em;
-       margin:1.4em 0 .5em 0}
-    h2{font-family:Arial,Helvetica,sans-serif;font-size:1.22em;font-weight:bold;
-       color:#1d3557;margin:1.2em 0 .35em 0}
-    h3{font-family:Arial,Helvetica,sans-serif;font-size:1.05em;font-weight:bold;
-       color:#457b9d;margin:.9em 0 .25em 0}
-    p{margin:0 0 .75em 0;text-align:justify}
-    blockquote{border-left:4px solid #c1121f;margin:.7em 0;
-               padding:.35em .8em;background:#f8f9fa;color:#444;font-style:italic}
-    ul,ol{margin:.4em 0 .7em 1.5em;padding:0}
-    li{margin-bottom:.3em}
-    hr{border:none;border-top:1px solid #ccc;margin:1em 0}
-    table{border-collapse:collapse;width:100%;margin:.7em 0;font-size:.88em}
-    th{background:#1d3557;color:#fff;padding:.35em .55em;text-align:left}
-    td{border:1px solid #bbb;padding:.3em .55em}
-    tr:nth-child(even) td{background:#f4f6f9}
-    code{font-family:'Courier New',monospace;font-size:.85em;
-         background:#f0f4f8;padding:.05em .25em;border-radius:3px}
+    body{font-family:serif;font-size:100%;
+         line-height:1.8;margin:0;padding:0.5em 1em;color:#111111}
+    h1{font-family:sans-serif;font-size:1.6em;font-weight:bold;
+       margin:1.4em 0 0.5em 0}
+    h2{font-family:sans-serif;font-size:1.2em;font-weight:bold;
+       margin:1.2em 0 0.3em 0}
+    h3{font-family:sans-serif;font-size:1.05em;font-weight:bold;
+       margin:0.9em 0 0.2em 0}
+    p{margin:0 0 0.7em 0}
+    blockquote{margin:0.7em 1em;padding:0.3em 0.8em;
+               border-left:3px solid #888888;font-style:italic}
+    ul,ol{margin:0.4em 0 0.7em 1.5em;padding:0}
+    li{margin-bottom:0.3em}
+    hr{border:none;border-top:1px solid #cccccc;margin:1em 0}
+    table{border-collapse:collapse;width:100%;margin:0.7em 0;font-size:0.9em}
+    th{background:#333333;color:#ffffff;padding:0.3em 0.5em;text-align:left}
+    td{border:1px solid #bbbbbb;padding:0.3em 0.5em}
+    code{font-family:monospace;font-size:0.85em}
 """)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
