@@ -1,0 +1,101 @@
+/* Google Play Books compatible CSS */
+body {
+  font-family: "Georgia", serif;
+  font-size: 1em;
+  line-height: 1.7;
+  margin: 1em;
+  color: #1a1a1a;
+}
+
+h1 {
+  font-size: 1.8em;
+  font-weight: bold;
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+  color: #0d1b2a;
+  page-break-before: always;
+  border-bottom: 2px solid #e63946;
+  padding-bottom: 0.3em;
+}
+
+h2 {
+  font-size: 1.3em;
+  font-weight: bold;
+  margin-top: 1.5em;
+  margin-bottom: 0.4em;
+  color: #1d3557;
+}
+
+h3 {
+  font-size: 1.1em;
+  font-weight: bold;
+  margin-top: 1.2em;
+  color: #457b9d;
+}
+
+p {
+  margin-bottom: 0.8em;
+  text-align: justify;
+}
+
+blockquote {
+  border-left: 4px solid #e63946;
+  padding-left: 1em;
+  margin: 1em 0;
+  font-style: italic;
+  background: #f8f9fa;
+  color: #555;
+}
+
+ul, ol {
+  margin: 0.5em 0 0.8em 1.5em;
+}
+
+li {
+  margin-bottom: 0.4em;
+}
+
+strong {
+  color: #e63946;
+}
+
+em {
+  color: #457b9d;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 1.5em 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.9em;
+}
+
+th {
+  background: #1d3557;
+  color: white;
+  padding: 0.5em;
+  text-align: left;
+}
+
+td {
+  border: 1px solid #ddd;
+  padding: 0.4em 0.6em;
+}
+
+tr:nth-child(even) {
+  background: #f8f9fa;
+}
+
+.chapter-number {
+  font-size: 0.9em;
+  color: #e63946;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
