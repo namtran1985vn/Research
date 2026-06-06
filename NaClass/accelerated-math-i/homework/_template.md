@@ -1,0 +1,19 @@
+# Homework {N} — {Topic}
+
+*~15–20 min. {one-line instruction}.*
+
+1. ...
+2. ...
+...
+10. ...
+
+---
+
+## Answer key (for teacher)
+
+1. ...
+...
+
+**Note on common variations:** {e.g., reduced vs unreduced answers}
+
+**Scoring guide:** 9–10 → move on. 6–8 → review wrong ones before next session. ≤5 → re-watch the relevant Khan video and redo this homework.
